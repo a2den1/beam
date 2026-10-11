@@ -328,6 +328,7 @@ const ERR = {
 
 function connect(pc, password = null) {
   unlockAudio();
+  badTimes = 0; badCount = 0; lastDecoded = -1;
   if (session) session.close();
   current = pc;
   if (host && pc.id === hostStatus?.id) { toast('이 PC에는 연결할 수 없어요'); return; }
@@ -345,7 +346,7 @@ function connect(pc, password = null) {
   s.addEventListener('track', (e) => attachVideo(e.detail));
   s.addEventListener('hello', (e) => onHello(pc, e.detail));
   s.addEventListener('state', (e) => onState(e.detail));
-  s.addEventListener('tick', (e) => { encFps = e.detail.encFps; setLocked(e.detail.locked); });
+  s.addEventListener('tick', (e) => { encFps = e.detail.encFps; hostState.enc = e.detail.enc; hostState.src = e.detail.src; setLocked(e.detail.locked); });
   s.addEventListener('cur', (e) => view?.follow(e.detail.x, e.detail.y));
   s.addEventListener('stats', (e) => onStats(e.detail));
   s.addEventListener('clip', (e) => gotClip(e.detail.s));
@@ -517,6 +518,39 @@ function exitRemote() {
   renderHome();
 }
 
+// 화면이 초록 단색이거나 디코딩이 안 되면 PC 에 알려 캡처·인코딩 방식을 바꾸게 합니다.
+const probe = document.createElement('canvas');
+probe.width = 32; probe.height = 18;
+let badCount = 0, lastBad = 0, badTimes = 0, lastDecoded = -1;
+function looksBroken() {
+  if (!video.videoWidth) return false;
+  try {
+    const x = probe.getContext('2d', { willReadFrequently: true });
+    x.drawImage(video, 0, 0, 32, 18);
+    const d = x.getImageData(0, 0, 32, 18).data;
+    let r = 0, g = 0, b = 0, n = d.length / 4, vr = 0;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+    r /= n; g /= n; b /= n;
+    for (let i = 0; i < d.length; i += 4) vr += Math.abs(d[i + 1] - g);
+    // 디코더가 빈 데이터를 받으면 YUV(0,0,0) → 진한 초록 단색이 됩니다.
+    return g > 60 && r < 25 && b < 25 && vr / n < 6;
+  } catch { return false; }
+}
+async function checkHealth() {
+  if (!inRemote || !session?.rtc) return;
+  let v = null;
+  (await session.rtc.getStats()).forEach((x) => { if (x.type === 'inbound-rtp' && x.kind === 'video') v = x; });
+  const stuck = v && v.bytesReceived > 200000 && v.framesDecoded === lastDecoded;
+  if (v) lastDecoded = v.framesDecoded;
+  if (looksBroken() || stuck) badCount++; else badCount = 0;
+  if (badCount >= 3 && Date.now() - lastBad > 8000 && badTimes < 3) {
+    badCount = 0; lastBad = Date.now(); badTimes++;
+    session.send({ t: 'bad' });
+    banner('화면 방식을 바꾸는 중');
+    setTimeout(() => { if (bannerText === '화면 방식을 바꾸는 중') banner(''); }, 4000);
+  }
+}
+
 // 세션 카드에 쓸 마지막 화면을 작게 저장해 둡니다(이 기기 안에만).
 function saveThumb() {
   if (!current || !video.videoWidth) return;
@@ -618,12 +652,14 @@ function renderMode() {
 }
 
 function onStats(s) {
+  checkHealth();
   const parts = [];
   if (s.w) parts.push(`${s.w}×${s.h}`);
   parts.push(`${s.fps}fps`);
   if (s.rtt) parts.push(`${s.rtt}ms`);
   parts.push(`${s.mbps.toFixed(1)}Mbps`);
   if (s.route) parts.push(s.route);
+  if (hostState.enc) parts.push(`${hostState.enc.replace('h264_', '').replace('lib', '').toUpperCase()}/${(hostState.src || 'dda').toUpperCase()}`);
   $('#mStats').textContent = parts.join(' · ');
 }
 
