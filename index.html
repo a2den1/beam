@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Beam</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Beam">
+<meta name="description" content="폰으로 쓰는 내 PC">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script src="icons.js"></script>
+</head>
+<body>
+
+<div class="drag"></div>
+<div class="winbtns host-only">
+  <button data-win="min" aria-label="최소화"><i data-i="min"></i></button>
+  <button data-win="max" aria-label="최대화"><i data-i="max"></i></button>
+  <button data-win="close" aria-label="닫기"><i data-i="close"></i></button>
+</div>
+
+<div class="app" id="app">
+  <aside class="side">
+    <nav class="nav">
+      <button data-page="sessions" class="on"><i data-i="display"></i><span>세션</span></button>
+      <button data-page="host" class="host-only"><i data-i="house"></i><span>이 PC</span><b id="liveBadge" class="badge" hidden></b></button>
+      <button data-page="settings" class="host-only"><i data-i="gear"></i><span>설정</span></button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <!-- 세션 목록 -->
+    <section class="page" data-page="sessions">
+      <header class="head">
+        <div>
+          <h1>세션</h1>
+          <p class="count" id="count"></p>
+        </div>
+        <button id="addBtn" class="btn dark"><i data-i="plus"></i><span>세션 추가</span></button>
+      </header>
+      <div id="pcs" class="grid"></div>
+      <div id="empty" class="empty" hidden>
+        <i data-i="display"></i>
+        <h3>세션이 없어요</h3>
+        <p>오른쪽 위 세션 추가로 PC 번호를 입력하세요</p>
+      </div>
+    </section>
+
+    <!-- 이 PC (PC 앱에서만) -->
+    <section class="page host-only" data-page="host" hidden>
+      <header class="head"><div><h1>이 PC</h1><p class="count" id="hostName"></p></div></header>
+      <div class="hostcard">
+        <div class="hostinfo">
+          <div class="lbl">PC 번호</div>
+          <div class="bigrow"><span id="hId" class="bignum"></span><button class="tbtn" id="copyId">복사</button></div>
+          <div class="lbl">비밀번호</div>
+          <div class="bigrow"><span id="hPw" class="midnum"></span><button class="tbtn" id="copyPw">복사</button><button class="tbtn" id="newPw">새로 만들기</button></div>
+        </div>
+        <div class="qrbox">
+          <div id="qr" class="qr"></div>
+          <div class="lbl">폰 카메라로 스캔</div>
+        </div>
+      </div>
+      <div class="set">
+        <label class="setrow inline" id="blackRow"><i data-i="moon"></i><span>검은 화면</span><b class="sw" id="blackSw"></b></label>
+      </div>
+
+      <h2 class="sec">연결된 기기</h2>
+      <div id="live" class="rows"></div>
+
+      <h2 class="sec">등록된 기기</h2>
+      <div id="devices" class="rows"></div>
+
+      <div id="facts" class="facts"></div>
+    </section>
+
+    <!-- 설정 (PC 앱에서만) -->
+    <section class="page host-only" data-page="settings" hidden>
+      <header class="head"><div><h1>설정</h1></div></header>
+      <div class="set">
+        <div class="setrow"><i data-i="display"></i><span>PC 이름</span><input id="name" class="input" maxlength="40" spellcheck="false"></div>
+        <div class="setrow"><i data-i="image"></i><span>기본 화질</span>
+          <div class="seg" id="hLevel"><button data-v="auto">자동</button><button data-v="max">최고</button><button data-v="high">높음</button><button data-v="mid">보통</button><button data-v="low">낮음</button></div>
+        </div>
+        <div class="setrow"><i data-i="gauge"></i><span>최대 프레임</span>
+          <div class="seg" id="hFps"><button data-v="60">60</button><button data-v="120">120</button><button data-v="144">144</button></div>
+        </div>
+      </div>
+      <div class="set">
+        <label class="setrow" data-set="autostart"><i data-i="power"></i><span>Windows 시작 시 실행</span><b class="sw"></b></label>
+        <label class="setrow" data-set="keepAwake"><i data-i="bolt"></i><span>절전·화면 꺼짐 막기</span><b class="sw"></b></label>
+        <label class="setrow" data-set="blackoutOnConnect"><i data-i="moon"></i><span>연결되면 검은 화면</span><b class="sw"></b></label>
+        <label class="setrow" data-set="upnp"><i data-i="route"></i><span>공유기 포트 자동 열기</span><b class="sw"></b></label>
+        <label class="setrow" data-set="wakeHelper"><i data-i="sun"></i><span>같은 집 PC 깨우기 도우미</span><b class="sw"></b></label>
+      </div>
+      <div class="set">
+        <div class="setrow"><i data-i="keyboard"></i><span>검은 화면 바로 걷기</span><kbd>Ctrl + Alt + Shift + B</kbd></div>
+        <div class="setrow"><i data-i="link"></i><span>폰 주소</span><button class="tbtn" id="url"></button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 세션 추가 -->
+<div id="add" class="modal" hidden>
+  <div class="scrim" data-close></div>
+  <form class="dialog" id="addForm" autocomplete="off">
+    <h2>세션 추가</h2>
+    <label class="fld"><span>PC 번호</span><input id="fId" class="input num" inputmode="numeric" placeholder="000 000 000" maxlength="11"></label>
+    <label class="fld" id="pwFld"><span>비밀번호</span><input id="fPw" class="input num" inputmode="numeric" placeholder="6자리" maxlength="7"></label>
+    <label class="fld"><span>이름</span><input id="fName" class="input" placeholder="선택" maxlength="40"></label>
+    <div class="err" id="addErr"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-close>취소</button>
+      <button type="submit" class="btn primary" id="addOk">연결</button>
+    </div>
+  </form>
+</div>
+
+<!-- 연결 중 -->
+<section id="dial" class="dial" hidden>
+  <div class="dial-thumb" id="dialThumb"></div>
+  <div class="dial-name" id="dialName"></div>
+  <div class="dial-step"><span class="spin"></span><span id="dialStep"></span></div>
+  <button id="dialCancel" class="btn ghost">취소</button>
+</section>
+
+<!-- 원격 화면 -->
+<section id="remote" class="remote" hidden>
+  <div id="stage" class="stage">
+    <div id="view" class="view"><video id="video" playsinline autoplay muted disablepictureinpicture></video></div>
+  </div>
+  <div id="touch" class="touch"></div>
+  <div id="banner" class="banner" hidden></div>
+  <button id="handle" class="handle" aria-label="메뉴"><span></span></button>
+  <div id="keysbar" class="keysbar" hidden>
+    <button data-mod="ControlLeft">Ctrl</button>
+    <button data-mod="AltLeft">Alt</button>
+    <button data-mod="ShiftLeft">Shift</button>
+    <button data-mod="MetaLeft">Win</button>
+    <button data-key="Escape">Esc</button>
+    <button data-key="Tab">Tab</button>
+    <button data-key="ArrowLeft" aria-label="왼쪽"><i data-i="left"></i></button>
+    <button data-key="ArrowUp" aria-label="위"><i data-i="up"></i></button>
+    <button data-key="ArrowDown" aria-label="아래"><i data-i="down"></i></button>
+    <button data-key="ArrowRight" aria-label="오른쪽"><i data-i="right"></i></button>
+    <button data-key="Backspace" aria-label="지우기"><i data-i="back"></i></button>
+    <button data-key="Enter">Enter</button>
+    <button data-key="Delete">Del</button>
+    <button data-key="Home">Home</button>
+    <button data-key="End">End</button>
+    <button data-key="PageUp">PgUp</button>
+    <button data-key="PageDown">PgDn</button>
+    <button data-key="Insert">Ins</button>
+    <button data-key="PrintScreen">PrtSc</button>
+    <button data-key="Lang1">한/영</button>
+    <button data-fkeys>F1–F12</button>
+    <button data-hidekb aria-label="키보드 닫기"><i data-i="keyboard"></i></button>
+  </div>
+  <div id="fkeys" class="keysbar fkeys" hidden></div>
+  <textarea id="kb" class="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="enter"></textarea>
+
+  <div id="menu" class="menu" hidden>
+    <div class="menu-scrim" data-closemenu></div>
+    <div class="menu-card">
+      <div class="menu-head">
+        <div>
+          <div class="menu-title" id="mName"></div>
+          <div class="menu-stats" id="mStats"></div>
+        </div>
+        <button class="xbtn" data-closemenu aria-label="닫기"><i data-i="close"></i></button>
+      </div>
+
+      <div class="tiles">
+        <button class="tile" id="tKb"><i data-i="keyboard"></i><span>키보드</span></button>
+        <button class="tile" id="tMode"><span class="tmode-ic"></span><span class="tmode-t">트랙패드</span></button>
+        <button class="tile" id="tBlack"><i data-i="moon"></i><span>PC 화면 검게</span></button>
+        <button class="tile" id="tFit"><i data-i="expand"></i><span>화면 맞춤</span></button>
+      </div>
+
+      <div class="field">
+        <div class="field-k">화질</div>
+        <div class="seg dark" id="segLevel">
+          <button data-v="auto">자동</button><button data-v="max">최고</button><button data-v="high">높음</button><button data-v="mid">보통</button><button data-v="low">낮음</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-k">프레임</div>
+        <div class="seg dark" id="segFps"><button data-v="60">60</button><button data-v="120">120</button><button data-v="144">144</button></div>
+      </div>
+      <div class="field" id="screenField" hidden>
+        <div class="field-k">모니터</div>
+        <div class="seg dark" id="segScreen"></div>
+      </div>
+
+      <div class="field">
+        <div class="field-k">단축키</div>
+        <div class="chips">
+          <button data-combo="MetaLeft">시작</button>
+          <button data-combo="AltLeft,Tab">Alt+Tab</button>
+          <button data-combo="MetaLeft,KeyD">바탕화면</button>
+          <button data-combo="ControlLeft,ShiftLeft,Escape">작업 관리자</button>
+          <button data-combo="ControlLeft,KeyC">복사</button>
+          <button data-combo="ControlLeft,KeyV">붙여넣기</button>
+          <button data-combo="ControlLeft,KeyZ">실행 취소</button>
+          <button data-combo="AltLeft,F4">창 닫기</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-k">클립보드 · 파일</div>
+        <div class="chips">
+          <button id="clipPush">폰 → PC 붙여넣기</button>
+          <button id="clipPull">PC → 폰 복사</button>
+          <button id="fileSend">파일 보내기</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-k">전원</div>
+        <div class="power">
+          <button data-power="lock"><i data-i="lock"></i>잠금</button>
+          <button data-power="sleep"><i data-i="moon"></i>절전</button>
+          <button data-power="restart"><i data-i="rotate"></i>다시 시작</button>
+          <button data-power="shutdown" class="danger"><i data-i="power"></i>끄기</button>
+        </div>
+      </div>
+
+      <button id="hangup" class="hangup">연결 끊기</button>
+    </div>
+  </div>
+</section>
+
+<!-- 확인 / 메뉴 -->
+<div id="ask" class="modal" hidden>
+  <div class="scrim ask-scrim"></div>
+  <div class="dialog">
+    <h2 id="askTitle"></h2>
+    <div class="ask-body" id="askBody"></div>
+    <div class="ask-actions" id="askActions"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
