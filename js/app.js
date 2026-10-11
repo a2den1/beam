@@ -730,7 +730,7 @@ $('#tBlack').addEventListener('click', () => {
   session?.send({ t: 'set', blackout: v });
   hostState.blackout = v;
   renderMenu();
-  toast(v ? 'PC 모니터를 검게 가렸어요' : 'PC 모니터에 화면이 다시 보여요', 1800);
+  toast(v ? 'PC 모니터를 껐어요 (PC는 계속 켜져 있어요)' : 'PC 모니터를 다시 켰어요', 2200);
 });
 $('#tFit').addEventListener('click', () => { view?.reset(); closeMenu(); });
 $('#segLevel').addEventListener('click', (e) => {
