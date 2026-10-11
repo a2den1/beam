@@ -134,6 +134,8 @@ h1 { font-size: 30px; font-weight: 700; letter-spacing: -.025em; line-height: 1.
 .qr { width: 152px; height: 152px; background: #fff; border-radius: 14px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .qr svg { width: 100%; height: 100%; display: block; }
 .sec { font-size: 17px; font-weight: 700; margin: 46px 0 8px; }
+.sec-row { display: flex; align-items: baseline; justify-content: space-between; max-width: 720px; }
+.sec-row .tbtn.red { color: var(--red); }
 .rows:empty::before { content: '없음'; color: var(--faint); font-size: 14px; display: block; padding: 8px 0; }
 .row { display: flex; align-items: center; gap: 14px; padding: 12px 0; animation: cardIn .45s var(--ease) backwards; }
 .row > .ic { font-size: 22px; color: var(--sub); }
@@ -169,6 +171,8 @@ kbd { font: 600 12.5px 'Pretendard', sans-serif; background: var(--field); color
 .modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 20px; }
 .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.28); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: fade .25s var(--ease) backwards; }
 .dialog { position: relative; width: min(400px, 100%); background: #fff; border-radius: 18px; padding: 28px 26px 22px; box-shadow: 0 30px 80px rgba(0,0,0,.22); animation: dlgIn .4s var(--ease) backwards; }
+.dialog.wide { width: min(640px, 100%); }
+.log { background: var(--field); border-radius: 12px; padding: 12px 14px; font: 500 12px/1.55 ui-monospace, Consolas, monospace; color: #3a3a3c; max-height: 46vh; overflow: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 18px; user-select: text; -webkit-user-select: text; }
 .dialog h2 { font-size: 20px; font-weight: 700; margin-bottom: 20px; letter-spacing: -.02em; }
 .fld { display: grid; gap: 7px; margin-bottom: 14px; }
 .fld span { color: var(--sub); font-size: 13px; font-weight: 600; }

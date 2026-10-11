@@ -51,13 +51,27 @@ export class Session extends EventTarget {
     this.emit('step', 'PC를 찾는 중');
     this.relay.send(P.topicIn(id), hello);
     // 브로커가 늦게 붙었거나 메시지가 빠졌을 때를 위해 한 번 더 보냅니다(중복은 i 로 걸러짐).
-    this.resend = setTimeout(() => { if (!this.key) this.relay.send(P.topicIn(id), { ...hello, i: undefined }); }, 2500);
+    // 중계 서버가 늦게 붙었거나 메시지가 빠졌을 때를 위해 몇 번 더 보냅니다(PC 는 같은 sid 를 한 번만 처리).
+    let tries = 0;
+    const again = () => {
+      if (this.key || this.closed || ++tries > 4) return;
+      this.relay.send(P.topicIn(id), { ...hello, i: undefined });
+      this.resend = setTimeout(again, 2500);
+    };
+    this.resend = setTimeout(again, 2500);
     this.timer = setTimeout(() => { if (!this.rtc || this.rtc.connectionState !== 'connected') this.fail(this.key ? 'nat' : 'noreply'); }, 20000);
   }
 
   async onSignal(msg) {
     if (this.closed) return;
     if (msg.m === 'err') return this.fail(msg.code, msg);
+    if (msg.m === 'wait') {
+      // PC 앞에서 허락을 기다리는 동안은 시간 제한을 늘립니다.
+      this.emit('step', 'PC에서 허락을 기다리는 중');
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => { if (!this.rtc || this.rtc.connectionState !== 'connected') this.fail('nat'); }, 50000);
+      return;
+    }
 
     if (msg.m === 'chal' && !this.key) {
       let key;

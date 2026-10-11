@@ -68,13 +68,14 @@
         </div>
       </div>
       <div class="set">
+        <label class="setrow inline" id="allowRow"><i data-i="signal"></i><span>원격 접속 받기</span><b class="sw" id="allowSw"></b></label>
         <label class="setrow inline" id="blackRow"><i data-i="moon"></i><span>검은 화면</span><b class="sw" id="blackSw"></b></label>
       </div>
 
       <h2 class="sec">연결된 기기</h2>
       <div id="live" class="rows"></div>
 
-      <h2 class="sec">등록된 기기</h2>
+      <div class="sec-row"><h2 class="sec">등록된 기기</h2><button class="tbtn red" id="removeAll">모두 해제</button></div>
       <div id="devices" class="rows"></div>
 
       <div id="facts" class="facts"></div>
@@ -96,11 +97,14 @@
         <label class="setrow" data-set="autostart"><i data-i="power"></i><span>Windows 시작 시 실행</span><b class="sw"></b></label>
         <label class="setrow" data-set="keepAwake"><i data-i="bolt"></i><span>절전·화면 꺼짐 막기</span><b class="sw"></b></label>
         <label class="setrow" data-set="audio"><i data-i="volume"></i><span>PC 소리 보내기</span><b class="sw"></b></label>
+        <label class="setrow" data-set="approveNew"><i data-i="lock"></i><span>새 기기는 이 PC에서 허락 후 연결</span><b class="sw"></b></label>
+        <label class="setrow" data-set="idleKick"><i data-i="gauge"></i><span>60분 동안 조작 없으면 끊기</span><b class="sw"></b></label>
         <label class="setrow" data-set="blackoutOnConnect"><i data-i="moon"></i><span>연결되면 검은 화면</span><b class="sw"></b></label>
         <label class="setrow" data-set="upnp"><i data-i="route"></i><span>공유기 포트 자동 열기</span><b class="sw"></b></label>
         <label class="setrow" data-set="wakeHelper"><i data-i="sun"></i><span>같은 집 PC 깨우기 도우미</span><b class="sw"></b></label>
       </div>
       <div class="set">
+        <div class="setrow"><i data-i="xmark"></i><span>모든 원격 연결 끊기</span><kbd>Ctrl + Alt + Shift + X</kbd></div>
         <div class="setrow"><i data-i="keyboard"></i><span>검은 화면 바로 걷기</span><kbd>Ctrl + Alt + Shift + B</kbd></div>
         <div class="setrow"><i data-i="link"></i><span>폰 주소</span><button class="tbtn" id="url"></button></div>
       </div>
@@ -248,6 +252,20 @@
     <h2 id="askTitle"></h2>
     <div class="ask-body" id="askBody"></div>
     <div class="ask-actions" id="askActions"></div>
+  </div>
+</div>
+
+<!-- 오류 -->
+<div id="err" class="modal" hidden>
+  <div class="scrim"></div>
+  <div class="dialog wide">
+    <h2 id="errTitle">오류가 발생해 연결을 끊었어요</h2>
+    <div class="ask-body" id="errMsg"></div>
+    <pre class="log" id="errLog"></pre>
+    <div class="actions">
+      <button type="button" class="btn ghost" id="errCopy">로그 복사</button>
+      <button type="button" class="btn primary" id="errClose">확인</button>
+    </div>
   </div>
 </div>
 

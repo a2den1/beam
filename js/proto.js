@@ -118,17 +118,41 @@ export async function spakeFinish(st, otherHex) {
   return sha256(`beam-spake2|${st.hostId}|${a}|${b}|${k.toString(16)}`);
 }
 
-// ── 메시지 서명 ─────────────────────────────────────────────────────
-// 같은 세션에서 오가는 SDP/후보는 세션 키로 서명해서 중간자가 바꿔치지 못하게 합니다.
+// ── 메시지 암호화 ───────────────────────────────────────────────────
+// SDP·ICE 후보에는 공인/내부 IP 가 들어 있으므로 공개 브로커에는 암호문만 올립니다.
+// AES-256-GCM(세션 키에서 파생)이라 내용 변조도 함께 막습니다. 메시지 종류·sid 는 AAD 로 묶습니다.
+const SECRET_FIELDS = ['sdp', 'c', 'mid'];
+const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const aesKeys = new Map();
+async function aesKey(key) {
+  if (!aesKeys.has(key)) {
+    const raw = unhex(await hmac(key, 'beam-aes-gcm'));
+    aesKeys.set(key, await subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']));
+    if (aesKeys.size > 64) aesKeys.delete(aesKeys.keys().next().value);
+  }
+  return aesKeys.get(key);
+}
+
 export async function sign(key, msg) {
-  const body = `${msg.m}|${msg.sid}|${msg.sdp ?? ''}|${msg.c ?? ''}|${msg.mid ?? ''}`;
-  msg.mac = await hmac(key, body);
+  const secret = {};
+  for (const f of SECRET_FIELDS) if (msg[f] != null) { secret[f] = msg[f]; delete msg[f]; }
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: te.encode(`${msg.m}|${msg.sid}`) }, await aesKey(key), te.encode(JSON.stringify(secret))));
+  msg.x = b64(iv) + '.' + b64(ct);
   return msg;
 }
 
+// 복호화에 성공하면 원래 필드를 msg 에 되살리고 true 를 돌려줍니다.
 export async function verify(key, msg) {
-  const body = `${msg.m}|${msg.sid}|${msg.sdp ?? ''}|${msg.c ?? ''}|${msg.mid ?? ''}`;
-  return same(await hmac(key, body), msg.mac);
+  if (typeof msg.x !== 'string' || !msg.x.includes('.')) return false;
+  try {
+    const [iv, ct] = msg.x.split('.').map(unb64);
+    const pt = await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: te.encode(`${msg.m}|${msg.sid}`) }, await aesKey(key), ct);
+    const secret = JSON.parse(new TextDecoder().decode(pt));
+    for (const f of SECRET_FIELDS) if (secret[f] != null) msg[f] = secret[f];
+    return true;
+  } catch { return false; }
 }
 
 // 등록된 기기로 다시 붙을 때 쓰는 세션 키

@@ -18,6 +18,8 @@ const LS = {
   set(k, v) { try { localStorage.setItem('beam.' + k, JSON.stringify(v)); } catch { /* 사생활 보호 모드·용량 초과 */ } },
 };
 let pcs = LS.get('pcs', []);
+// IP·브로드캐스트 주소는 더 이상 받지도 저장하지도 않습니다. 예전 버전이 저장한 값도 지웁니다.
+for (const p of pcs) { delete p.ip; delete p.bc; }
 const savePcs = () => LS.set('pcs', pcs);
 const findPc = (id) => pcs.find((p) => p.id === id);
 
@@ -94,7 +96,6 @@ relay.on((topic, msg) => {
       let dirty = false;
       if (msg.name && !pc.custom && pc.name !== msg.name) { pc.name = msg.name; dirty = true; }
       if (msg.os && pc.os !== msg.os) { pc.os = msg.os; dirty = true; }
-      if (msg.ip && pc.ip !== msg.ip) { pc.ip = msg.ip; dirty = true; }
       if (dirty) savePcs();
     }
   } else if (msg.on === false) {
@@ -167,7 +168,7 @@ function renderHome() {
   $('#pcs').innerHTML = list.map((p, i) => {
     const th = thumbOf(p.id);
     const online = isOnline(p.id);
-    const sub = [p.os || 'Windows', p.ip || fmtId(p.id)].join(' · ');
+    const sub = [p.os || 'Windows', fmtId(p.id)].join(' · ');
     return `
     <div class="card ${online ? 'on' : ''}" data-id="${p.id}" role="button" tabindex="0" style="${first ? `animation-delay:${i * 0.05}s` : 'animation:none'}">
       <div class="thumb">
@@ -202,7 +203,10 @@ async function pcMenu(pc) {
   actions.push({ label: '삭제', icon: 'trash', value: 'remove', kind: 'danger' });
   const a = await ask({ title: pc.name || 'PC', body: fmtId(pc.id), actions });
   if (a === 'connect') connect(pc);
-  if (a === 'wake') wake(pc);
+  if (a === 'wake') {
+    const ok = await ask({ title: '장치의 전원을 원격으로 켜시겠습니까?', body: `${pc.name || fmtId(pc.id)}을(를) 켜는 신호를 보내요.`, actions: [{ label: '예, 켭니다', icon: 'sun', value: true, kind: 'primary' }, { label: '아니요', value: false }] });
+    if (ok) wake(pc);
+  }
   if (a === 'rename') {
     const name = await ask({ title: '이름 바꾸기', input: { value: pc.name }, actions: [{ label: '저장', value: true, kind: 'primary' }] });
     if (name && name.trim()) { pc.name = name.trim(); pc.custom = true; savePcs(); homeKey = ''; renderHome(); }
@@ -324,10 +328,14 @@ const ERR = {
   offline: '인터넷 연결을 확인해 주세요',
   busy: 'PC에 연결된 기기가 너무 많아요',
   bad: '연결 정보가 올바르지 않아요',
+  paused: 'PC에서 원격 접속을 꺼 두었어요',
+  denied: 'PC에서 연결을 거부했어요',
 };
 
 function connect(pc, password = null) {
   unlockAudio();
+  errorShown = false;
+  logLine(`연결 시도: ${pc.name || pc.id}${password ? ' (비밀번호)' : ' (등록 기기)'}`);
   badTimes = 0; badCount = 0; lastDecoded = -1;
   if (session) session.close();
   current = pc;
@@ -349,6 +357,20 @@ function connect(pc, password = null) {
   s.addEventListener('tick', (e) => { encFps = e.detail.encFps; hostState.enc = e.detail.enc; hostState.src = e.detail.src; setLocked(e.detail.locked); });
   s.addEventListener('cur', (e) => view?.follow(e.detail.x, e.detail.y));
   s.addEventListener('stats', (e) => onStats(e.detail));
+  s.addEventListener('step', (e) => logLine(e.detail));
+  s.addEventListener('connected', () => logLine(`연결됨 (${pc.name || pc.id})`));
+  s.addEventListener('error', (e) => showError('PC에서 오류가 발생해 연결을 끊었어요', e.detail.msg, e.detail.log));
+  s.addEventListener('powerack', (e) => {
+    const n = { sleep: '절전', hibernate: '최대 절전', restart: '다시 시작', shutdown: '전원 끄기', logoff: '로그아웃' }[e.detail.a] || e.detail.a;
+    toast(`${e.detail.delay}초 뒤 ${n}해요. PC 앞에서 취소할 수 있어요`, 3500);
+  });
+  s.addEventListener('bye', (e) => {
+    if (e.detail.reason === 'idle') { toast('60분 동안 조작이 없어 연결을 끊었어요', 3500); hangup(); }
+  });
+  s.addEventListener('local', (e) => {
+    if (e.detail.v) banner('PC 앞에서 사용 중이라 잠시 조작할 수 없어요');
+    else if (bannerText.startsWith('PC 앞에서')) banner('');
+  });
   s.addEventListener('clip', (e) => gotClip(e.detail.s));
   s.addEventListener('fdone', (e) => { if (e.detail.id === sending?.id) sending.done(e.detail.name); });
   s.addEventListener('connected', () => {
@@ -367,8 +389,6 @@ function onHello(pc, h) {
   if (h.name && !pc.custom) pc.name = h.name;
   if (h.mac) pc.mac = h.mac;
   if (h.os) pc.os = h.os;
-  if (h.ip) pc.ip = h.ip;
-  if (h.bc) pc.bc = h.bc;
   pc.last = Date.now();
   if (!findPc(pc.id)) pcs.push(pc);
   savePcs();
@@ -378,11 +398,12 @@ function onHello(pc, h) {
   homeKey = '';
 }
 
-function onEnd(pc, password, { code }) {
+function onEnd(pc, password, { code, detail }) {
   if (session && session.closed) session = null;
-  if (code === 'user') return;
+  logLine(`연결 종료: ${code}${detail?.message ? ' ' + detail.message : ''}`);
+  if (code === 'user' || errorShown) return;
   // 이미 화면을 보고 있었다면(통신 끊김) 기기 키로 조용히 다시 붙습니다.
-  if (inRemote && pc.dev && ['lost', 'closed', 'nat', 'noreply', 'offline'].includes(code) && retry < 30) {
+  if (inRemote && pc.dev && ['lost', 'closed', 'nat', 'noreply', 'offline'].includes(code) && retry < 5) {
     retry++;
     banner('다시 연결하는 중');
     setTimeout(() => { if (inRemote && current === pc) connect(pc); }, Math.min(500 * retry, 4000));
@@ -397,8 +418,9 @@ function onEnd(pc, password, { code }) {
     d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake');
     return;
   }
-  if (code === 'lost' || code === 'closed') { toast('연결이 끊어졌어요'); return; }
-  toast(ERR[code] || '연결하지 못했어요', 3200);
+  // 사용자가 고칠 수 있는 상황(비밀번호·거부·꺼짐 등)은 짧게 알리고, 나머지는 원인 로그를 보여 줍니다.
+  if (['locked', 'paused', 'denied', 'busy', 'offline', 'noreply'].includes(code)) { toast(ERR[code], 3500); return; }
+  showError(code === 'lost' || code === 'closed' ? '연결이 끊어졌어요' : '연결 중 오류가 발생했어요', ERR[code] || `오류 코드: ${code}`);
 }
 
 $('#dialCancel').addEventListener('click', () => {
@@ -407,6 +429,38 @@ $('#dialCancel').addEventListener('click', () => {
   $('#dial').hidden = true;
   exitRemote();
 });
+
+// ── 로그와 오류 모달 ─────────────────────────────────────────────────
+const logBuf = [];
+function logLine(msg) {
+  const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  logBuf.push(`[${t}] ${msg}`);
+  if (logBuf.length > 200) logBuf.splice(0, logBuf.length - 200);
+}
+let errorShown = false;
+function showError(title, msg, hostLog = '') {
+  if (errorShown) return;
+  errorShown = true;
+  logLine(`오류: ${msg || title}`);
+  // 오류가 나면 조작이 엉키지 않도록 즉시 연결을 끊습니다.
+  const s = session;
+  session = null;
+  current = null;
+  s?.close();
+  $('#dial').hidden = true;
+  exitRemote();
+  $('#errTitle').textContent = title;
+  $('#errMsg').textContent = msg || '';
+  $('#errLog').textContent = (hostLog ? `── PC 로그 ──\n${hostLog}\n\n` : '') + `── 이 기기 로그 ──\n${logBuf.join('\n')}`;
+  $('#err').hidden = false;
+}
+$('#errClose').addEventListener('click', () => { $('#err').hidden = true; errorShown = false; });
+$('#errCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#errLog').textContent); toast('로그를 복사했어요'); } catch { toast('복사하지 못했어요'); }
+});
+// 앱 자체 오류도 연결 중이면 바로 끊고 보여 줍니다.
+window.addEventListener('error', (e) => { if (session || inRemote) showError('앱에서 오류가 발생해 연결을 끊었어요', `${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`); });
+window.addEventListener('unhandledrejection', (e) => { if (session || inRemote) showError('앱에서 오류가 발생해 연결을 끊었어요', String(e.reason?.message || e.reason)); });
 
 // ── 원격 화면 ──────────────────────────────────────────────────────
 const video = $('#video');
@@ -546,6 +600,7 @@ async function checkHealth() {
   if (badCount >= 3 && Date.now() - lastBad > 8000 && badTimes < 3) {
     badCount = 0; lastBad = Date.now(); badTimes++;
     session.send({ t: 'bad' });
+    logLine('화면이 깨져 보여 PC에 캡처 방식 변경을 요청');
     banner('화면 방식을 바꾸는 중');
     setTimeout(() => { if (bannerText === '화면 방식을 바꾸는 중') banner(''); }, 4000);
   }
@@ -696,18 +751,22 @@ $$('[data-combo]').forEach((b) => b.addEventListener('click', () => {
 }));
 
 const POWER = {
-  lock: { title: 'PC를 잠글까요?', label: '잠금' },
-  sleep: { title: 'PC를 절전 모드로 바꿀까요?', label: '절전', body: '켜려면 같은 집의 다른 PC나 공유기 WOL이 필요해요.' },
-  restart: { title: 'PC를 다시 시작할까요?', label: '다시 시작', body: '저장하지 않은 작업은 사라져요.' },
-  shutdown: { title: 'PC를 끌까요?', label: '끄기', body: '저장하지 않은 작업은 사라져요.' },
+  lock: { title: 'PC를 잠글까요?', label: '잠금', confirm: '장치를 원격으로 잠그시겠습니까?', yes: '예, 잠급니다', detail: '잠기면 PC 앞에서 로그인해야 다시 쓸 수 있어요.' },
+  sleep: { title: 'PC를 절전 모드로 바꿀까요?', label: '절전', body: '켜려면 같은 집의 다른 PC나 공유기 WOL이 필요해요.', confirm: '장치를 원격으로 절전 모드로 전환하시겠습니까?', yes: '예, 절전합니다', detail: '10초 뒤 실행되고, PC 앞에서 Ctrl+Alt+Shift+X로 취소할 수 있어요.' },
+  restart: { title: 'PC를 다시 시작할까요?', label: '다시 시작', body: '저장하지 않은 작업은 사라져요.', confirm: '장치를 원격으로 다시 시작하시겠습니까?', yes: '예, 다시 시작합니다', detail: '15초 뒤 실행되고, PC 앞에서 Ctrl+Alt+Shift+X로 취소할 수 있어요.' },
+  shutdown: { title: 'PC를 끌까요?', label: '끄기', body: '저장하지 않은 작업은 사라져요.', confirm: '장치의 전원을 원격으로 종료하시겠습니까?', yes: '예, 전원을 끕니다', detail: '15초 뒤 꺼지고, PC 앞에서 Ctrl+Alt+Shift+X로 취소할 수 있어요. 다시 켜려면 같은 집의 다른 PC나 공유기 WOL이 필요해요.' },
 };
 $$('[data-power]').forEach((b) => b.addEventListener('click', async () => {
   const a = b.dataset.power;
   const p = POWER[a];
   const ok = await ask({ title: p.title, body: p.body || '', actions: [{ label: p.label, value: true, kind: a === 'lock' ? 'primary' : 'danger' }, { label: '취소', value: false }] });
   if (!ok) return;
+  // 한 번 더 확인합니다. 잘못 눌러 PC 가 꺼지면 원격으로 다시 켜기 어렵습니다.
+  const again = await ask({ title: p.confirm, body: p.detail, actions: [{ label: p.yes, value: true, kind: 'danger' }, { label: '아니요', value: false }] });
+  if (!again) return;
+  logLine(`전원 명령 보냄: ${a}`);
   session?.send({ t: 'power', a });
-  if (a !== 'lock') { toast(`${p.label} 명령을 보냈어요`); setTimeout(hangup, 400); } else closeMenu();
+  if (a === 'lock') closeMenu();
 }));
 $('#hangup').addEventListener('click', hangup);
 
@@ -998,6 +1057,8 @@ function renderHost(s, force) {
   if (s.qr && qrFor !== s.url) { $('#qr').innerHTML = s.qr; qrFor = s.url; }
   $('#url').textContent = s.url ? s.url.split('#')[0].replace(/^https:\/\//, '') : '';
   $('#blackSw').classList.toggle('on', !!s.blackout);
+  $('#allowSw').classList.toggle('on', !!s.settings.allowRemote);
+  $('#removeAll').hidden = !s.devices.length;
 
   const n = s.viewers.length;
   $('#liveBadge').hidden = !n;
@@ -1041,8 +1102,6 @@ function renderHost(s, force) {
 
   const facts = [['인코더', s.encoder ? s.encoder.replace('h264_', '').toUpperCase() + (n ? ` · ${s.encFps}fps` : '') : '대기 중']];
   facts.push(['공유기 포트', s.upnp?.ok ? '열림' : s.settings.upnp ? '닫힘' : '사용 안 함']);
-  if (s.lan?.ip) facts.push(['내부 IP', s.lan.ip]);
-  if (s.upnp?.external) facts.push(['외부 IP', s.upnp.external]);
   if (s.lockedUntil > Date.now()) facts.push(['비밀번호 입력', `${Math.ceil((s.lockedUntil - Date.now()) / 60000)}분 잠김`]);
   const fk = JSON.stringify(facts);
   if ($('#facts').dataset.k !== fk) {
@@ -1064,6 +1123,11 @@ if (host) {
   $('#copyPw').addEventListener('click', () => { host.copy(hostStatus.password); toast('비밀번호를 복사했어요'); });
   $('#newPw').addEventListener('click', async () => { await host.newPassword(); toast('새 비밀번호로 바꿨어요'); });
   $('#blackRow').addEventListener('click', (e) => { e.preventDefault(); host.blackout(!hostStatus.blackout); });
+  $('#allowRow').addEventListener('click', (e) => { e.preventDefault(); host.setting('allowRemote', !hostStatus.settings.allowRemote); });
+  $('#removeAll').addEventListener('click', async () => {
+    const ok = await ask({ title: '등록된 기기를 모두 해제할까요?', body: '연결 중인 기기도 끊기고, 다시 연결하려면 모두 비밀번호가 필요해요.', actions: [{ label: '모두 해제', icon: 'trash', value: true, kind: 'danger' }, { label: '취소', value: false }] });
+    if (ok) { await host.removeAllDevices(); await host.newPassword(); toast('모두 해제하고 비밀번호도 바꿨어요'); }
+  });
   $('#url').addEventListener('click', () => { host.copy(hostStatus.url.split('#')[0]); toast('주소를 복사했어요'); });
   $$('[data-set]').forEach((row) => row.addEventListener('click', (e) => { e.preventDefault(); host.setting(row.dataset.set, !hostStatus.settings[row.dataset.set]); }));
   $('#hLevel').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) host.setting('level', b.dataset.v); });

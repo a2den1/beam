@@ -5,6 +5,7 @@ export const BROKERS = [
   'wss://broker.emqx.io:8084/mqtt',
   'wss://broker.hivemq.com:8884/mqtt',
   'wss://test.mosquitto.org:8081/mqtt',
+  'wss://mqtt.eclipseprojects.io:443/mqtt',
 ];
 
 const te = new TextEncoder();
@@ -54,7 +55,7 @@ class Link {
       body.push(flags, ...u16(30), ...payload);
       ws.send(packet(0x10, body));
     };
-    ws.onmessage = (e) => this.feed(new Uint8Array(e.data));
+    ws.onmessage = (e) => { this.lastRx = Date.now(); this.feed(new Uint8Array(e.data)); };
     ws.onclose = ws.onerror = () => {
       if (this.ws !== ws) return;
       this.ws = null;
@@ -96,7 +97,12 @@ class Link {
       for (const t of this.owner.topics) this.subscribe(t);
       for (const [t, m] of this.owner.retained) this.publish(t, m, true);
       clearInterval(this.ping);
-      this.ping = setInterval(() => this.send(new Uint8Array([0xc0, 0])), 20000);
+      this.lastRx = Date.now();
+      // 응답 없이 붙어만 있는 연결(좀비)을 찾아 다시 붙습니다. 15초마다 핑, 40초간 아무것도 안 오면 끊음.
+      this.ping = setInterval(() => {
+        if (Date.now() - this.lastRx > 40000) { try { this.ws?.close(); } catch { /* 무시 */ } return; }
+        this.send(new Uint8Array([0xc0, 0]));
+      }, 15000);
       this.owner.changed();
     } else if (type === 3) { // PUBLISH (QoS 0)
       const tl = (body[0] << 8) | body[1];
