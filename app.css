@@ -57,18 +57,28 @@ body.remote-on .winbtns, body.remote-on .drag { display: none !important; }
 /* ── 레이아웃 ───────────────────────────────────────────── */
 .app { position: fixed; inset: 0; display: flex; }
 .side { width: 240px; flex: none; background: var(--side); display: flex; flex-direction: column; padding: calc(var(--st) + 56px) 12px 20px; }
-.nav { display: grid; gap: 2px; }
+.nav { position: relative; display: grid; gap: 2px; }
+.nav button { position: relative; z-index: 1; }
+.nav-pill { position: absolute; left: 0; right: 0; top: 0; border-radius: 9px; background: #e8e8ed; transition: transform .45s cubic-bezier(.32, .72, 0, 1), height .3s; pointer-events: none; }
 .nav button { display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 12px; border-radius: 9px; color: var(--sub); font-weight: 600; font-size: 14px; text-align: left; transition: color .2s, background .2s; }
 .nav button .ic { font-size: 18px; }
 .nav button span { flex: 1; }
 .nav button:hover { color: var(--text); }
-.nav button.on { color: var(--text); background: #e8e8ed; }
+.nav button.on { color: var(--text); }
 .badge { min-width: 19px; height: 19px; padding: 0 6px; border-radius: 10px; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #c7c7cc; flex: none; transition: background .3s; }
 .dot.on { background: var(--green); }
 
 .main { flex: 1; min-width: 0; overflow-y: auto; padding: calc(var(--st) + 52px) 48px 56px; scrollbar-width: thin; scrollbar-color: #d2d2d7 transparent; }
 .page { max-width: 1240px; animation: pageIn .45s var(--ease) backwards; }
+.page.in-next, .page.in-prev { animation: none; }
+.page.in-next > * { animation: tabNext .5s var(--ease) backwards; }
+.page.in-prev > * { animation: tabPrev .5s var(--ease) backwards; }
+.page.in-next > :nth-child(2), .page.in-prev > :nth-child(2) { animation-delay: .04s; }
+.page.in-next > :nth-child(3), .page.in-prev > :nth-child(3) { animation-delay: .08s; }
+.page.in-next > :nth-child(n+4), .page.in-prev > :nth-child(n+4) { animation-delay: .12s; }
+@keyframes tabNext { from { opacity: 0; transform: translateX(36px); filter: blur(6px); } }
+@keyframes tabPrev { from { opacity: 0; transform: translateX(-36px); filter: blur(6px); } }
 
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 30px; }
 h1 { font-size: 30px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }

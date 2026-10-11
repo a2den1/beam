@@ -119,12 +119,36 @@ setInterval(renderHome, 15000);
 
 
 // ── 페이지 ─────────────────────────────────────────────────────────
+// 탭 전환: 선택 표시가 미끄러져 옮겨 가고, 본문은 아래 탭이면 오른쪽에서·위 탭이면 왼쪽에서 들어옵니다.
+const ORDER = ['sessions', 'host', 'settings'];
+let curPage = 'sessions';
+const navPill = document.createElement('span');
+navPill.className = 'nav-pill';
+$('.nav').prepend(navPill);
+function placePill(animate) {
+  const on = $('.nav button.on');
+  if (!on) return;
+  navPill.style.transition = animate ? '' : 'none';
+  navPill.style.transform = `translateY(${on.offsetTop}px)`;
+  navPill.style.height = on.offsetHeight + 'px';
+}
 function go(page) {
+  if (page === curPage) return;
+  const dir = ORDER.indexOf(page) > ORDER.indexOf(curPage) ? 'in-next' : 'in-prev';
+  curPage = page;
   $$('.nav button').forEach((b) => b.classList.toggle('on', b.dataset.page === page));
-  $$('.page').forEach((el) => { el.hidden = el.dataset.page !== page; });
+  placePill(true);
+  $$('.page').forEach((el) => {
+    const show = el.dataset.page === page;
+    el.hidden = !show;
+    el.classList.remove('in-next', 'in-prev');
+    if (show) { void el.offsetWidth; el.classList.add(dir); }
+  });
   $('.main').scrollTop = 0;
   if (hostStatus) renderHost(hostStatus, true);
 }
+requestAnimationFrame(() => placePill(false));
+new ResizeObserver(() => placePill(false)).observe($('.nav'));
 $$('.nav button').forEach((b) => b.addEventListener('click', () => go(b.dataset.page)));
 
 // ── 세션 목록 ──────────────────────────────────────────────────────
