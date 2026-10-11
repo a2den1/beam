@@ -327,6 +327,7 @@ const ERR = {
 };
 
 function connect(pc, password = null) {
+  unlockAudio();
   if (session) session.close();
   current = pc;
   if (host && pc.id === hostStatus?.id) { toast('이 PC에는 연결할 수 없어요'); return; }
@@ -351,6 +352,7 @@ function connect(pc, password = null) {
   s.addEventListener('fdone', (e) => { if (e.detail.id === sending?.id) sending.done(e.detail.name); });
   s.addEventListener('connected', () => {
     retry = 0;
+    setTimeout(() => session === s && s.send({ t: 'mute', v: !soundOn }), 500);
     $('#dial').hidden = true;
     banner('');
     enterRemote();
@@ -414,7 +416,48 @@ let wakeLock = null;
 function attachVideo(stream) {
   if (video.srcObject !== stream) video.srcObject = stream;
   video.play().catch(() => {});
+  const a = stream.getAudioTracks()[0];
+  if (a) attachAudio(a);
 }
+
+// ── 소리 ───────────────────────────────────────────────────────────
+const audioEl = $('#audio');
+let soundOn = LS.get('sound', true);
+// iOS 는 사용자가 누른 순간에 한 번 재생해 둬야 나중에 소리가 납니다.
+function unlockAudio() {
+  try { audioEl.muted = true; audioEl.play().catch(() => {}); } catch { /* 무시 */ }
+}
+function attachAudio(track) {
+  if (audioEl.srcObject?.getAudioTracks()[0] === track) return;
+  audioEl.srcObject = new MediaStream([track]);
+  applySound();
+}
+function applySound() {
+  audioEl.muted = !soundOn;
+  session?.send({ t: 'mute', v: !soundOn });
+  if (soundOn && audioEl.srcObject) {
+    audioEl.play().then(() => { if (bannerText === '눌러서 소리 켜기') banner(''); })
+      .catch(() => banner('눌러서 소리 켜기'));
+  }
+  renderSound();
+}
+function renderSound() {
+  $('#tSound .tsound-ic').innerHTML = ic(soundOn ? 'volume' : 'mute');
+  $('#tSound .tsound-t').textContent = soundOn ? '소리 켜짐' : '소리 꺼짐';
+  $('#tSound').classList.toggle('off', !soundOn);
+}
+// 자동 재생이 막혔을 때는 화면을 한 번 누르면 켜집니다.
+$('#touch').addEventListener('pointerdown', () => {
+  if (soundOn && audioEl.srcObject && audioEl.paused) audioEl.play().then(() => { if (bannerText === '눌러서 소리 켜기') banner(''); }).catch(() => {});
+}, true);
+$('#tSound').addEventListener('click', () => { soundOn = !soundOn; LS.set('sound', soundOn); applySound(); });
+renderSound();
+
+$('#tFull').addEventListener('click', () => {
+  closeMenu();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+});
 const syncSize = () => view?.setSource(video.videoWidth, video.videoHeight);
 video.addEventListener('loadedmetadata', syncSize);
 video.addEventListener('resize', syncSize);
@@ -464,6 +507,7 @@ function exitRemote() {
   $('#menu').hidden = true;
   hideKb();
   video.srcObject = null;
+  audioEl.srcObject = null;
   setLocked(false);
   banner('');
   wakeLock?.release().catch(() => {});

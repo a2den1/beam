@@ -95,6 +95,7 @@
       <div class="set">
         <label class="setrow" data-set="autostart"><i data-i="power"></i><span>Windows 시작 시 실행</span><b class="sw"></b></label>
         <label class="setrow" data-set="keepAwake"><i data-i="bolt"></i><span>절전·화면 꺼짐 막기</span><b class="sw"></b></label>
+        <label class="setrow" data-set="audio"><i data-i="volume"></i><span>PC 소리 보내기</span><b class="sw"></b></label>
         <label class="setrow" data-set="blackoutOnConnect"><i data-i="moon"></i><span>연결되면 검은 화면</span><b class="sw"></b></label>
         <label class="setrow" data-set="upnp"><i data-i="route"></i><span>공유기 포트 자동 열기</span><b class="sw"></b></label>
         <label class="setrow" data-set="wakeHelper"><i data-i="sun"></i><span>같은 집 PC 깨우기 도우미</span><b class="sw"></b></label>
@@ -135,6 +136,7 @@
 <section id="remote" class="remote" hidden>
   <div id="stage" class="stage">
     <div id="view" class="view"><video id="video" playsinline autoplay muted disablepictureinpicture></video></div>
+    <audio id="audio" autoplay></audio>
   </div>
   <div id="touch" class="touch"></div>
   <div id="banner" class="banner" hidden></div>
@@ -182,6 +184,8 @@
         <button class="tile" id="tMode"><span class="tmode-ic"></span><span class="tmode-t">트랙패드</span></button>
         <button class="tile" id="tBlack"><i data-i="moon"></i><span>PC 화면 검게</span></button>
         <button class="tile" id="tFit"><i data-i="expand"></i><span>화면 맞춤</span></button>
+        <button class="tile" id="tSound"><span class="tsound-ic"></span><span class="tsound-t">소리</span></button>
+        <button class="tile" id="tFull"><i data-i="full"></i><span>전체 화면</span></button>
       </div>
 
       <div class="field">

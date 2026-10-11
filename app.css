@@ -253,7 +253,8 @@ kbd { font: 600 12.5px 'Pretendard', sans-serif; background: var(--field); color
 .tile { padding: 10px 2px; display: grid; justify-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #98989d; transition: color .2s; }
 .tile .ic { font-size: 27px; color: #f5f5f7; }
 .tile.on, .tile.on .ic { color: #0a84ff; }
-.tmode-ic { display: block; font-size: 27px; color: #f5f5f7; line-height: 0; }
+.tmode-ic, .tsound-ic { display: block; font-size: 27px; color: #f5f5f7; line-height: 0; }
+.tile.off .tsound-ic { color: #98989d; }
 .field { margin-top: 16px; }
 .field-k { color: #98989d; font-size: 12.5px; font-weight: 600; margin-bottom: 7px; }
 .seg.dark { background: #2c2c2e; }
